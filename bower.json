@@ -1,7 +1,8 @@
 {
   "name": "paper-search",
   "authors": [
-    "collaborne"
+    "collaborne",
+    "ActindoElements"
   ],
   "description": "A Material Design search bar (Polymer 1.x)",
   "main": "paper-search.html",
@@ -14,7 +15,7 @@
     "filter"
   ],
   "license": "Apache-2.0",
-  "homepage": "https://github.com/collaborne/paper-search",
+  "homepage": "https://github.com/ActindoElements/paper-search",
   "ignore": [
     "**/.*"
   ],

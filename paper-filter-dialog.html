@@ -102,19 +102,30 @@ Dialog with which the user can filter the result set
 					<span class="title">[[_selectedFilter.name]]</span>
 				</paper-toolbar>
 
-				<iron-list id="valuesList" items="[[_selectedFilterValues]]" as="filterValue" class="list">
-					<template>
-						<div class="value-holder">
-							<paper-item class="value">
-								<paper-checkbox name="[[filterValue.id]]" checked="{{filterValue.selected}}"></paper-checkbox>
-								<div>
-									[[filterValue.name]]
-									<span class="nrResults" hidden="[[!filterValue.count]]">([[filterValue.count]])</span>
-								</div>
-							</paper-item>
-						</div>
-					</template>
-				</iron-list>
+
+				<template is="dom-if" if="[[_isFilterTypeString(_selectedFilter)]]">
+					<paper-input label="[[_selectedFilter.name]]" value="{{_selectedFilterValue}}"></paper-input>
+				</template>
+
+				<template is="dom-if" if="[[_isFilterTypeBoolean(_selectedFilter)]]">
+					<paper-checkbox checked="{{_selectedFilterValue}}"></paper-checkbox>
+				</template>
+
+				<template is="dom-if" if="[[_isFilterTypeValues(_selectedFilter)]]">
+					<iron-list id="valuesList" items="[[_selectedFilterValues]]" as="filterValue" class="list">
+						<template>
+							<div class="value-holder">^
+								<paper-item class="value">
+									<paper-checkbox name="[[filterValue.id]]" checked="{{filterValue.selected}}"></paper-checkbox>
+									<div>
+										[[filterValue.name]]
+										<span class="nrResults" hidden="[[!filterValue.count]]">([[filterValue.count]])</span>
+									</div>
+								</paper-item>
+							</div>
+						</template>
+					</iron-list>
+				</template>
 			</div>
 		</paper-dialog>
 	</template>
@@ -182,6 +193,9 @@ Dialog with which the user can filter the result set
 			_selectedFilterValues: {
 				type: Array,
 				value: []
+			},
+			_selectedFilterValue: {
+				type: String
 			}
 		},
 
@@ -202,7 +216,9 @@ Dialog with which the user can filter the result set
 				this._selectedFilters = Object.assign({}, this.selectedFilters);
 
 				// @see https://github.com/PolymerElements/neon-animation/issues/60#issuecomment-152345020
-				this.$.valuesList.fire('iron-resize');
+				if( this.$.valuesList ) {
+					this.$.valuesList.fire('iron-resize');
+				}
 			}.bind(this), 1);
 		},
 
@@ -224,15 +240,20 @@ Dialog with which the user can filter the result set
 		 */
 		_preselectFilterValues: function() {
 			// Check all values that are selected
-			var selectedValueIds = this._selectedFilters[this._selectedFilter.id];
-			var isSelected = function(value) {
-				return Boolean(selectedValueIds) && selectedValueIds.indexOf(value.id) >= 0;
-			};
-			this._selectedFilterValues = this._selectedFilter.values.map(function(value) {
-				return Object.assign({}, value, {
-					selected: isSelected(value)
+			if( this._isFilterTypeValues(this._selectedFilter) ) {
+				var selectedValueIds = this._selectedFilters[this._selectedFilter.id];
+				var isSelected = function (value) {
+					return Boolean(selectedValueIds) && selectedValueIds.indexOf(value.id) >= 0;
+				};
+				this._selectedFilterValues = this._selectedFilter.values.map(function (value) {
+					return Object.assign({}, value, {
+						selected: isSelected(value)
+					});
 				});
-			});
+			}
+			else {
+				this._selectedFilterValue = this._selectedFilters[this._selectedFilter.id];
+			}
 		},
 		_tapReset: function(e) {
 			this._selectedFilters = {};
@@ -244,14 +265,24 @@ Dialog with which the user can filter the result set
 		},
 		_tapSelectValues: function(e) {
 			// Captured IDs of the selected items
-			const selectedValues = this._selectedFilterValues.filter(function(value) {
-				return value.selected;
-			}).map(function(value) {
-				return value.id;
-			});
-			this._selectedFilters = Object.assign({}, this._selectedFilters, {
-				[this._selectedFilter.id] : selectedValues
-			});
+			if( this._isFilterTypeValues(this._selectedFilter) ) {
+				const selectedValues = this._selectedFilterValues.filter(function (value) {
+					return value.selected;
+				}).map(function (value) {
+					return value.id;
+				});
+				this._selectedFilters = Object.assign({}, this._selectedFilters, {
+					[this._selectedFilter.id]: selectedValues
+				});
+			}
+			else
+			{
+				const selectedValues = this._selectedFilterValue;
+				this._selectedFilters = Object.assign({}, this._selectedFilters, {
+					[this._selectedFilter.id]: selectedValues
+				});
+			}
+
 
 			this.$.selector.deselect(this._selectedFilter);
 		},
@@ -264,7 +295,12 @@ Dialog with which the user can filter the result set
 		_hasSelectedFilters: function(selectedFilters) {
 			// Iterate until we find a filter that is selected
 			for (selectedFilter in selectedFilters) {
-				if (selectedFilters[selectedFilter].length > 0) {
+				var s = selectedFilters[selectedFilter];
+				if (
+						(Array.isArray(s) && s.length > 0) ||
+						(!Array.isArray(s) && s !== undefined)
+				)
+				{
 					return true;
 				}
 			}
@@ -274,21 +310,44 @@ Dialog with which the user can filter the result set
 		// Returns the concated names of the selected values for a specific filter
 		_getSelectedValuesNames: function(filter, _selectedFilters) {
 			var selectedValueIds = _selectedFilters[filter.id];
-			if (!filter.values || !selectedValueIds) {
-				return this.noValuesLabel;
+			if( this._isFilterTypeValues(filter) ) {
+				if (!filter.values || !selectedValueIds) {
+					return this.noValuesLabel;
+				}
+
+				// Capture names of all selected values
+				var names = filter.values.filter(function (value) {
+					// Only consider values that are selected
+					return selectedValueIds.indexOf(value.id) >= 0;
+				}).map(function (value) {
+					// Capture name of the selected value
+					return value.name;
+				})
+
+				return names.length > 0 ? names.join(', ') : this.noValuesLabel;
+			} else if( this._isFilterTypeBoolean(filter) ) {
+				return selectedValueIds === undefined ? this.noValuesLabel : (selectedValueIds ? 'true' : 'false');
+			} else if( this._isFilterTypeString(filter) ) {
+				return selectedValueIds === undefined ? this.noValuesLabel : selectedValueIds;
 			}
-
-			// Capture names of all selected values
-			var names = filter.values.filter(function(value) {
-				// Only consider values that are selected
-				return selectedValueIds.indexOf(value.id) >= 0;
-			}).map(function(value) {
-				// Capture name of the selected value
-				return value.name;
-			})
-
-			return names.length > 0 ? names.join(', ') : this.noValuesLabel;
 		},
+
+		_isFilterTypeString: function (_selectedFilter) {
+			return _selectedFilter && _selectedFilter.type && _selectedFilter.type == 'string';
+		},
+		_isFilterTypeValues: function (_selectedFilter) {
+			return _selectedFilter && (!_selectedFilter.type || _selectedFilter.type == 'values');
+		},
+		_isFilterTypeBoolean: function (_selectedFilter) {
+			return _selectedFilter && _selectedFilter.type && _selectedFilter.type == 'boolean';
+		}
+		/*,
+		_isFilterTypeDateTime: function (_selectedFilter) {
+			return _selectedFilter && _selectedFilter.type && _selectedFilter.type == 'datetime';
+		},
+		_isFilterTypeNumber: function (_selectedFilter) {
+			return _selectedFilter && _selectedFilter.type && _selectedFilter.type == 'number';
+		},*/
 	});
 
 })();
