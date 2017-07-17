@@ -64,7 +64,9 @@ Bar in which the user can enter search terms and filter
 
 		<div class="input-panel flex">
 			<iron-icon icon="[[icon]]" class="icon"></iron-icon>
-			<input is="iron-input" id="input" bind-value="{{query}}" placeholder="[[placeholder]]" class="flex"></input>
+			<iron-input bind-value="{{query}}">
+				<input placeholder="[[placeholder]]" id="input" class="flex" value="{{query::input}}"></input>
+			</iron-input>
 		</div>
 		<paper-icon-button icon="clear" hidden$="[[!query]]" on-tap="_clear" class="icon"></paper-icon-button>
 		<div hidden$="[[hideFilterButton]]">
